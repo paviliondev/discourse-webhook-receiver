@@ -1,0 +1,6 @@
+en:
+  js:  
+    webhook_receiver:
+      title: "Webhook Receiver"
+      logs: "Logs"
+      filter: "user or group"

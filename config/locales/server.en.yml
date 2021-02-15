@@ -1,0 +1,10 @@
+en:
+  site_settings:
+    webhook_receiver_enabled: "Enable reciever"
+    webhook_receiver_secret: "Receiver HMAC digest secret"
+    webhook_receiver_secret_header_key: "Receiver HMAC digest header key"
+    webhook_receiver_payload_key_path: "Path to key in receiver payload"
+    webhook_receiver_payload_email_path: "Path to email in receiver payload"
+    webhook_receiver_post_receipt_request: "Make request with payload key value"
+    webhook_receiver_post_receipt_request_url: "Post receipt request url. Use :key to interpolate key"
+    webhook_receiver_key_group_map: "Receiver group map in key:group format"

@@ -1,0 +1,23 @@
+.admin-plugins.webhook-receiver {
+  .title {
+    display: flex;
+    align-items: center;
+    
+    h3 {
+      margin-bottom: 0;
+    }
+    
+    .right {
+      margin-left: auto;
+    }
+  }
+  
+  table {
+    table-layout: fixed;
+    
+    td:last-of-type,
+    th:last-of-type {
+      text-align: center;
+    }
+  }
+}

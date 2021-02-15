@@ -1,0 +1,39 @@
+<div class="title">
+  <h2>{{i18n 'webhook_receiver.logs'}}</h2>
+  
+  <div class="right">
+    {{input value=filter placeholder=(i18n 'webhook_receiver.filter')}}
+    {{d-button icon="redo" action="refresh" title="refresh" label="refresh"}}
+  </div>
+</div>
+
+{{#load-more selector=".log-list tr" action=(action "loadMore")}}
+  {{#if noResults}}
+    <p>{{i18n 'search.no_results'}}</p>
+  {{else}}
+    <table class="log-list table grid">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Format</th>
+          <th>Group</th>
+          <th>Message</th>
+          <th>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each logs as |log|}}
+          <tr>
+            <td>{{log.user}}</td>
+            <td>{{log.format}}</td>
+            <td>{{log.group}}</td>
+            <td>{{log.message}}</td>
+            <td>{{bound-date log.date}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>  
+  {{/if}}
+  
+  {{conditional-loading-spinner condition=refreshing}}
+{{/load-more}}
