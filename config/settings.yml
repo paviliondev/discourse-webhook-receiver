@@ -4,8 +4,9 @@ plugins:
   webhook_receiver_secret_header_key: ''
   webhook_receiver_payload_key_path: ''
   webhook_receiver_payload_email_path: ''
-  webhook_receiver_post_receipt_request: false
-  webhook_receiver_post_receipt_request_url: ''
-  webhook_receiver_key_group_map:
+  webhook_receiver_request: false
+  webhook_receiver_request_url: ''
+  webhook_receiver_request_key_path: ''
+  webhook_receiver_key_object_map:
     type: list
     default: ''

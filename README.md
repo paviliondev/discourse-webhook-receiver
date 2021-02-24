@@ -1,10 +1,12 @@
 ## Discourse Webhook Receiver
 
+This plugin allows you to process webhook payloads from other services in Discourse. Currently it's focused on receiving webhook payloads from Shopify for the management of user groups.
+
 ### Authentication
 
 The two ``receiver_secret`` site settings must be filled out, e.g. for a shopify webhook:
 
-webhook_receiver_secret: '01534563e5423423534536b33459d9ad5d97c6f6165643656fa797eec434f'
+webhook_receiver_secret: '01534563e5423423534234td36b33459d25ead5d97c6f6165643656fa797eec434f'
 webhook_receiver_secret_header_key: 'X-Shopify-Hmac-SHA256'
 
 ### Receiver payload paths

@@ -4,7 +4,7 @@
 # authors: Angus McLeod
 # url: https://github.com/paviliondev/discourse-webhook-receiver
 
-plugin_enabled_setting :webhook_receiver_enabled
+enabled_site_setting :webhook_receiver_enabled
 add_admin_route 'webhook_receiver.title', 'webhook-receiver'
 register_asset 'stylesheets/common/webhook_receiver.scss'
 

@@ -1,6 +1,6 @@
 import { default as discourseComputed, observes } from 'discourse-common/utils/decorators';
 import { notEmpty } from "@ember/object/computed";
-import WebhookReceiverLog from '../models/webhook-recevier-log';
+import WebhookReceiverLog from '../models/webhook-receiver-log';
 import Controller from "@ember/controller";
 import discourseDebounce from "discourse/lib/debounce";
 import { INPUT_DELAY } from "discourse-common/config/environment";

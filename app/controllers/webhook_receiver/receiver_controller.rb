@@ -7,36 +7,39 @@ class WebhookReceiver::ReceiverController < ApplicationController
                      :verify_authenticity_token
       
   def receive
-    group_result = find_group
-        
-    if group_result[:error] || group_result[:group].blank?
-      message = group_result[:error] || 'failed to find group'
+    object_result = find_objects
+    puts "OBJECT RESULT: #{object_result.inspect}"
+    if object_result[:error] || object_result[:objects].blank?
+      message = object_result[:error] || 'failed to find objects'
       return render_error(message)
     end
     
     user_result = find_user
-    
+    puts "USER RESULT: #{user_result.inspect}"
     if user_result[:error] || user_result[:user].blank?
       message = user_result[:error] || 'failed to find user'
       return render_error(message)
     end
-    
-    group = group_result[:group]
+        
+    objects = object_result[:objects]
     user = user_result[:user]
-
-    if group.add(user)
-      message = "added #{user.username} to #{group.name}"
-      
-      WebhookReceiver::Log.create(
-        user: user.username,
-        group: group.name,
-        message: message 
-      )
-      
-      render_success(message)
-    else
-      render_error("failed to add #{user.username} to #{group.name} ")
+    
+    objects.each do |object|
+      if object[:type] == 'group'
+        group = object[:object]
+        message = group.add(user) ?
+          "added #{user.username} to #{group.name}" :
+          "failed to add #{user.username} to #{group.name}"
+        
+        WebhookReceiver::Log.create(
+          user: user.username,
+          group: group.name,
+          message: message
+        )
+      end
     end
+    
+    render_success("receive request completed")
   end
   
   protected
@@ -48,11 +51,17 @@ class WebhookReceiver::ReceiverController < ApplicationController
   end
   
   def validate_receiver_settings
-    if receiver_opts[:key_group_map].blank? ||
+    if receiver_opts[:key_object_map].blank? ||
        receiver_opts[:key_path].blank? ||
        receiver_opts[:email_path].blank? ||
        receiver_opts[:secret].blank? ||
-       receiver_opts[:secret_header_key].blank?
+       receiver_opts[:secret_header_key].blank? ||
+       (
+         receiver_opts[:receipt_request] && (
+           receiver_opts[:receipt_request_url].blank? ||
+           receiver_opts[:receipt_request_path].blank?
+         )
+       )
   
        render_error('incomplete settings')
     end
@@ -94,25 +103,40 @@ class WebhookReceiver::ReceiverController < ApplicationController
     result
   end
   
-  def find_group
+  def find_objects
     result = Hash.new
-    result[:key] = recurse(params, receiver_opts[:key_path])
+    result[:keys] = recurse(params, receiver_opts[:key_path]).flatten
+    result[:error] = "no keys found" if !result[:keys]
     
-    result[:error] = "no key found" if !result[:key]
     return result if result[:error]
     
-    if SiteSetting.webhook_receiver_post_receipt_request
-      result = post_receipt_request(result) 
+    if SiteSetting.webhook_receiver_request
+      result[:keys].each do |key|
+        request_result = post_receipt_request(key)
+        
+        if !request_result[:error]
+          key = request_result[:key]
+        end
+      end
     end
     
-    return result if result[:error]
-    
-    receiver_opts[:key_group_map].each do |k, group_name|
-      if k == result[:key]
-        if group = Group.find_by(name: group_name)
-          result[:group] = group
-        else
-          result[:error] = "no group with '#{group_name}' found"
+    result[:objects] = []
+
+    result[:keys].each do |key|
+      if object_ref = receiver_opts[:key_object_map][key]
+        parts = object_ref.split('.')
+        type = parts.first
+        id = parts.last
+        
+        if type == 'group'
+          if group = Group.find_by_id(id.to_i)
+            result[:objects].push(
+              type: 'group',
+              object: group
+            )
+          else
+            result[:error] = "no group with '#{group_name}' found"
+          end
         end
       end
     end
@@ -122,30 +146,43 @@ class WebhookReceiver::ReceiverController < ApplicationController
   
   def receiver_opts
     @receiver_opts ||= begin
-      key_group_map_array = SiteSetting.webhook_receiver_key_group_map.split('|')
-      key_group_map = {}
-      key_group_map_array.each do |item|
+      key_object_map_array = SiteSetting.webhook_receiver_key_object_map.split('|')
+      key_object_map = {}
+      key_object_map_array.each do |item|
         attrs = item.split(':')
-        key_group_map[attrs.first] = attrs.second
+        key = is_int?(attrs.first) ? attrs.first.to_i : attrs.first
+        value = is_int?(attrs.second) ? attrs.second.to_i : attrs.second
+        key_object_map[key] = value
       end
       
       key_path = build_recursive_path(SiteSetting.webhook_receiver_payload_key_path)
       email_path = build_recursive_path(SiteSetting.webhook_receiver_payload_email_path)
       
-      {
-        key_group_map: key_group_map,
+      opts = {
+        key_object_map: key_object_map,
         key_path: key_path,
         email_path: email_path,
         secret: SiteSetting.webhook_receiver_secret,
         secret_header_key: SiteSetting.webhook_receiver_secret_header_key
       }
+      
+      if SiteSetting.webhook_receiver_request
+        opts[:request_url] = SiteSetting.webhook_receiver_request_url
+        opts[:request_path] = build_recursive_path(SiteSetting.webhook_receiver_request_key_path)
+      end
+      
+      opts
     rescue => e
       Hash.new
     end
   end
   
   def build_recursive_path(setting_string)
-    setting_string.split('.').map { |p| p.scan(/\D/).empty? ? p.to_i : p }
+    setting_string.split('.').map { |p| is_int?(p) ? p.to_i : p }
+  end
+  
+  def is_int?(val)
+    /\A[-+]?\d+\z/ === val
   end
   
   def verify_webhook(body, hmac_header, secret)
@@ -156,8 +193,46 @@ class WebhookReceiver::ReceiverController < ApplicationController
   def recurse(data, keys)
     return nil if data.blank?
     k = keys.shift
-    result = data[k]
-    keys.empty? ? cast_result(result) : recurse(result, keys)
+    
+    if k.include?('[]')
+      parts = k.split('[]')
+      k = parts.first
+      arr = data[k]
+      
+      if arr.is_a?(Array)
+        ref_key = nil
+        ref_value = nil
+        if parts.length > 1
+          ref_parts = parts.last.split('=')
+          ref_key = ref_parts.first
+          ref_value = ref_parts.last
+        end
+        
+        puts "REF KEY: #{ref_key}"
+        puts "REF VALUE: #{ref_value}"
+        
+        result = []
+        
+        arr.each do |item|
+          puts "REF: #{item[ref_key] == ref_value}"
+          puts "KEYS: #{keys.inspect}"
+          puts "ITEM: #{item.inspect}"
+          puts "K: #{k}"
+          if ref_key == nil || (item[ref_key] == ref_value)
+            if keys.empty?
+              result.push(cast_result(item[k]))
+            else
+              result.push(recurse(item, keys.dup))
+            end
+          end
+        end
+        
+        result
+      end
+    else
+      result = data[k]
+      keys.empty? ? [cast_result(result)] : recurse(result, keys)
+    end
   end
   
   def cast_result(result)
@@ -174,17 +249,16 @@ class WebhookReceiver::ReceiverController < ApplicationController
   
   def render_error(message)
     WebhookReceiver::Log.create(message: message)
-    
-    render plain: "[\"#{message}\"]", status: 200 
     ## Success response sent to prevent webhook from repeating
+    render plain: "[\"#{message}\"]", status: 200
   end
   
   def render_success(message)
     render plain: "[\"#{message}\"]", status: 200
   end
   
-  def post_receipt_request(result)
-    url = SiteSetting.webhook_receiver_post_receipt_request_url.sub(':key', result[:key].to_s)
+  def post_receipt_request(key)
+    url = SiteSetting.webhook_receiver_request_url.sub(':key', key.to_s)
     
     response = Excon.get(url)
     
@@ -195,14 +269,7 @@ class WebhookReceiver::ReceiverController < ApplicationController
     end
     
     if response.status == 200
-      ## TO FIX: Shopify specific 
-      metafield = (body['metafields'] || []).select { |f| f['key'] == 'group' }.first
-      
-      if metafield.present?
-        result[:key] = metafield['value']
-      else
-        result[:error] = "No group key in: #{body['metafields']}" 
-      end
+      result[:key] = recurse(body, receiver_opts[:request_path])
     else
       result[:error] = "Post receipt request error: #{body.values || nil}"
     end

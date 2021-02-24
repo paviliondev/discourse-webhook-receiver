@@ -1,4 +1,4 @@
-OAuth2Extension::Engine.routes.draw do
+WebhookReceiver::Engine.routes.draw do
   post 'receive' => 'receiver#receive'
 end
 
