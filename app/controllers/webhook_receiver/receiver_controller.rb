@@ -8,14 +8,12 @@ class WebhookReceiver::ReceiverController < ApplicationController
       
   def receive
     object_result = find_objects
-    puts "OBJECT RESULT: #{object_result.inspect}"
     if object_result[:error] || object_result[:objects].blank?
       message = object_result[:error] || 'failed to find objects'
       return render_error(message)
     end
     
     user_result = find_user
-    puts "USER RESULT: #{user_result.inspect}"
     if user_result[:error] || user_result[:user].blank?
       message = user_result[:error] || 'failed to find user'
       return render_error(message)
@@ -208,16 +206,9 @@ class WebhookReceiver::ReceiverController < ApplicationController
           ref_value = ref_parts.last
         end
         
-        puts "REF KEY: #{ref_key}"
-        puts "REF VALUE: #{ref_value}"
-        
         result = []
         
         arr.each do |item|
-          puts "REF: #{item[ref_key] == ref_value}"
-          puts "KEYS: #{keys.inspect}"
-          puts "ITEM: #{item.inspect}"
-          puts "K: #{k}"
           if ref_key == nil || (item[ref_key] == ref_value)
             if keys.empty?
               result.push(cast_result(item[k]))
